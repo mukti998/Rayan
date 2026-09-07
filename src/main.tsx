@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import App from "./App";
+import { registerServiceWorker } from "./sw-registration";
 import "./index.css";
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL;
@@ -14,3 +15,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </ConvexProvider>
   </React.StrictMode>
 );
+
+// Register service worker for offline support
+registerServiceWorker();

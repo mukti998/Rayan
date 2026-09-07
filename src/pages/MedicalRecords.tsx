@@ -35,6 +35,9 @@ export default function MedicalRecords() {
       await createRecord({
         patientId: formData.patientId,
         patientName: formData.patientName,
+        callerRole: user?.role,
+        callerId: user?.userId,
+        callerName: user?.name,
         doctorId: formData.doctorId,
         doctorName: formData.doctorName,
         visitDate: formData.visitDate,

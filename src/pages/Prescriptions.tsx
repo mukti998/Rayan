@@ -70,6 +70,9 @@ export default function Prescriptions() {
         date,
         medications: validMeds,
         notes: notes || undefined,
+        callerRole: user?.role,
+        callerId: user?.userId,
+        callerName: user?.name,
       });
       setShowCreate(false);
       setPatientId(""); setPatientName(""); setDoctorId(""); setDoctorName("");

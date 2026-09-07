@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { useAuth } from "../lib/auth-context";
 import { generatePatientId } from "../lib/utils";
 import { useNavigate } from "react-router-dom";
 
 export default function Patients() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -37,6 +39,9 @@ export default function Patients() {
       await createPatient({
         ...formData,
         allergies: [],
+        callerRole: user?.role,
+        callerId: user?.userId,
+        callerName: user?.name,
       });
       setShowCreate(false);
       setFormData({

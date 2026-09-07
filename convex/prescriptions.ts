@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { hasRole, auditLog } from "./helpers";
 
 // List prescriptions
 export const list = query({
@@ -25,7 +26,7 @@ export const list = query({
   },
 });
 
-// Create prescription
+// Create prescription — doctor or admin only
 export const create = mutation({
   args: {
     patientId: v.string(),
@@ -41,13 +42,37 @@ export const create = mutation({
       instructions: v.optional(v.string()),
     })),
     notes: v.optional(v.string()),
+    callerRole: v.optional(v.string()),
+    callerId: v.optional(v.string()),
+    callerName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Server-side role check: only doctor or admin can create prescriptions
+    if (args.callerRole && !hasRole(args.callerRole, "admin", "doctor")) {
+      throw new Error("Access denied — only doctors and administrators can issue prescriptions");
+    }
+
     const id = await ctx.db.insert("prescriptions", {
-      ...args,
+      patientId: args.patientId,
+      patientName: args.patientName,
+      doctorId: args.doctorId,
+      doctorName: args.doctorName,
+      date: args.date,
+      medications: args.medications,
+      notes: args.notes,
       status: "active",
       createdAt: Date.now(),
     });
+
+    // Audit log
+    await auditLog(ctx, {
+      userId: args.callerId || args.doctorId,
+      userName: args.callerName || args.doctorName,
+      action: "create_prescription",
+      target: args.patientId,
+      details: `Prescription issued for ${args.patientName} — ${args.medications.length} medication(s)`,
+    });
+
     return id;
   },
 });
@@ -63,14 +88,38 @@ export const updateStatus = mutation({
       v.literal("dispensed")
     ),
     dispensedBy: v.optional(v.string()),
+    callerRole: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Role check: dispensing is pharmacist/admin, completion is doctor/admin
+    if (args.callerRole) {
+      if (args.status === "dispensed" && !hasRole(args.callerRole, "admin", "pharmacist")) {
+        throw new Error("Access denied — only pharmacists can dispense prescriptions");
+      }
+      if (args.status === "completed" && !hasRole(args.callerRole, "admin", "doctor")) {
+        throw new Error("Access denied — only doctors can mark prescriptions as completed");
+      }
+      if (args.status === "cancelled" && !hasRole(args.callerRole, "admin", "doctor")) {
+        throw new Error("Access denied — only doctors and admins can cancel prescriptions");
+      }
+    }
+
     const updates: any = { status: args.status };
     if (args.status === "dispensed") {
       updates.dispensedAt = Date.now();
       updates.dispensedBy = args.dispensedBy;
     }
     await ctx.db.patch(args.id, updates);
+
+    // Audit log
+    await auditLog(ctx, {
+      userId: "system",
+      userName: args.callerRole || "System",
+      action: `prescription_${args.status}`,
+      target: `rx_${args.id}`,
+      details: `Prescription status changed to ${args.status}`,
+    });
+
     return { success: true };
   },
 });

@@ -181,11 +181,11 @@ export default function Admin() {
                         <div className="flex gap-1">
                           {u.username !== "admin" && (
                             <>
-                              <button onClick={() => toggleUser({ id: u._id as any, active: !u.active })}
+                              <button onClick={() => toggleUser({ id: u._id as any, active: !u.active, callerRole: user?.role })}
                                 className={`text-xs px-2 py-1 rounded ${u.active ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                                 {u.active ? "Disable" : "Enable"}
                               </button>
-                              <button onClick={() => { if (confirm("Delete this user?")) deleteUser({ id: u._id as any }); }}
+                              <button onClick={() => { if (confirm("Delete this user?")) deleteUser({ id: u._id as any, callerRole: user?.role }); }}
                                 className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">Delete</button>
                             </>
                           )}

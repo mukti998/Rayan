@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth-context";
@@ -16,6 +16,7 @@ export default function Billing() {
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [formError, setFormError] = useState("");
+  const [printBill, setPrintBill] = useState<any>(null);
 
   const [patientId, setPatientId] = useState("");
   const [patientName, setPatientName] = useState("");
@@ -77,6 +78,9 @@ export default function Billing() {
         paidAmount,
         paymentMethod,
         createdBy: user?.username || "unknown",
+        callerRole: user?.role,
+        callerId: user?.userId,
+        callerName: user?.name,
       });
       setShowCreate(false);
       setPatientId(""); setPatientName("");
@@ -90,8 +94,23 @@ export default function Billing() {
   const handlePay = async (billId: string) => {
     const amount = prompt("Enter payment amount:");
     if (amount && !isNaN(Number(amount))) {
-      await processPayment({ id: billId as any, amount: Number(amount), paymentMethod: "cash" });
+      await processPayment({
+        id: billId as any,
+        amount: Number(amount),
+        paymentMethod: "cash",
+        callerRole: user?.role,
+        callerId: user?.userId,
+        callerName: user?.name,
+      });
     }
+  };
+
+  const handlePrint = (bill: any) => {
+    setPrintBill(bill);
+    setTimeout(() => {
+      window.print();
+      setPrintBill(null);
+    }, 100);
   };
 
   return (
@@ -265,17 +284,87 @@ export default function Billing() {
                   <td className="text-sm text-slate-600">${(b.total - b.paidAmount).toFixed(2)}</td>
                   <td><span className={`badge badge-${b.status}`}>{b.status}</span></td>
                   <td>
-                    {b.status !== "paid" && b.status !== "cancelled" && (
-                      <button onClick={() => handlePay(String(b._id))}
-                        className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
-                        Pay
+                    <div className="flex gap-1">
+                      {b.status !== "paid" && b.status !== "cancelled" && (
+                        <button onClick={() => handlePay(String(b._id))}
+                          className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
+                          Pay
+                        </button>
+                      )}
+                      <button onClick={() => handlePrint(b)}
+                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                        🖨 Print
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Print View (hidden on screen, visible when printing) */}
+      {printBill && (
+        <div className="hidden print:block fixed inset-0 bg-white p-8 text-black" id="print-area">
+          <div className="max-w-md mx-auto">
+            <div className="text-center mb-6">
+              <h1 className="text-2xl font-bold">Clinic Manager Pro</h1>
+              <p className="text-sm text-gray-600">Hospital Invoice</p>
+            </div>
+            <div className="border-t border-b border-gray-300 py-4 mb-4">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="font-medium">Invoice Date:</span>
+                <span>{formatDate(printBill.date)}</span>
+              </div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="font-medium">Patient:</span>
+                <span>{printBill.patientName}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">Status:</span>
+                <span className="uppercase font-bold">{printBill.status}</span>
+              </div>
+            </div>
+            <table className="w-full text-sm mb-4">
+              <thead>
+                <tr className="border-b border-gray-300">
+                  <th className="text-left py-2">Description</th>
+                  <th className="text-center py-2">Qty</th>
+                  <th className="text-right py-2">Unit Price</th>
+                  <th className="text-right py-2">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printBill.items.map((item: any, i: number) => (
+                  <tr key={i} className="border-b border-gray-200">
+                    <td className="py-2">{item.description}</td>
+                    <td className="text-center py-2">{item.quantity}</td>
+                    <td className="text-right py-2">${item.unitPrice.toFixed(2)}</td>
+                    <td className="text-right py-2">${item.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="border-t border-gray-300 pt-4 space-y-1">
+              <div className="flex justify-between text-sm"><span>Subtotal</span><span>${printBill.subtotal.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span>Tax</span><span>${printBill.tax.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span>Discount</span><span>-${printBill.discount.toFixed(2)}</span></div>
+              <div className="flex justify-between text-lg font-bold border-t border-gray-300 pt-2 mt-2">
+                <span>Total Due</span><span>${printBill.total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-green-700">
+                <span>Amount Paid</span><span>${printBill.paidAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-bold">
+                <span>Balance</span><span>${(printBill.total - printBill.paidAmount).toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="text-center text-xs text-gray-500 mt-8 pt-4 border-t border-gray-200">
+              <p>Thank you for your visit</p>
+              <p>Clinic Manager Pro — Hospital Management System</p>
+            </div>
+          </div>
         </div>
       )}
     </div>

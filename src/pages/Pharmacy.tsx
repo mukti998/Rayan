@@ -51,6 +51,7 @@ export default function Pharmacy() {
         id: prescriptionId as any,
         status: "dispensed",
         dispensedBy: user?.name || "Pharmacist",
+        callerRole: user?.role,
       });
     } catch (err: any) {
       alert(err.message);

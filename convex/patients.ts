@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { hasRole, auditLog } from "./helpers";
 
 // Get all patients
 export const list = query({
@@ -45,7 +46,7 @@ export const get = query({
   },
 });
 
-// Create patient
+// Create patient — requires admin, doctor, nurse, or receptionist role
 export const create = mutation({
   args: {
     patientId: v.string(),
@@ -63,8 +64,17 @@ export const create = mutation({
     insuranceProvider: v.optional(v.string()),
     insuranceNumber: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // Caller identity for server-side role check
+    callerRole: v.optional(v.string()),
+    callerId: v.optional(v.string()),
+    callerName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Server-side role check
+    if (args.callerRole && !hasRole(args.callerRole, "admin", "doctor", "nurse", "receptionist")) {
+      throw new Error("Access denied — cannot register patients with your role");
+    }
+
     // Check for duplicate patientId
     const existing = await ctx.db
       .query("patients")
@@ -75,25 +85,39 @@ export const create = mutation({
     }
 
     const id = await ctx.db.insert("patients", {
-      ...args,
+      patientId: args.patientId,
+      firstName: args.firstName,
+      lastName: args.lastName,
+      dateOfBirth: args.dateOfBirth,
+      gender: args.gender,
+      phone: args.phone,
+      email: args.email,
+      address: args.address,
+      bloodGroup: args.bloodGroup,
+      allergies: args.allergies,
+      emergencyContact: args.emergencyContact,
+      emergencyPhone: args.emergencyPhone,
+      insuranceProvider: args.insuranceProvider,
+      insuranceNumber: args.insuranceNumber,
+      notes: args.notes,
       registrationDate: Date.now(),
       status: "active",
     });
 
-    await ctx.db.insert("auditLog", {
-      userId: "system",
-      userName: "System",
+    // Audit log
+    await auditLog(ctx, {
+      userId: args.callerId || "system",
+      userName: args.callerName || "System",
       action: "create_patient",
       target: args.patientId,
       details: `New patient registered: ${args.firstName} ${args.lastName}`,
-      timestamp: Date.now(),
     });
 
     return id;
   },
 });
 
-// Update patient
+// Update patient — requires admin, doctor, nurse, or receptionist role
 export const update = mutation({
   args: {
     id: v.id("patients"),
@@ -110,9 +134,15 @@ export const update = mutation({
     insuranceNumber: v.optional(v.string()),
     status: v.optional(v.union(v.literal("active"), v.literal("discharged"), v.literal("critical"))),
     notes: v.optional(v.string()),
+    callerRole: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { id, ...updates } = args;
+    // Server-side role check
+    if (args.callerRole && !hasRole(args.callerRole, "admin", "doctor", "nurse", "receptionist")) {
+      throw new Error("Access denied — cannot update patients with your role");
+    }
+
+    const { id, callerRole, ...updates } = args;
     const cleaned = Object.fromEntries(
       Object.entries(updates).filter(([, v]) => v !== undefined)
     );
@@ -121,10 +151,17 @@ export const update = mutation({
   },
 });
 
-// Delete patient
+// Delete patient — admin only
 export const remove = mutation({
-  args: { id: v.id("patients") },
+  args: {
+    id: v.id("patients"),
+    callerRole: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
+    // Server-side role check: only admin can delete patients
+    if (args.callerRole && args.callerRole !== "admin") {
+      throw new Error("Access denied — only administrators can delete patients");
+    }
     await ctx.db.delete(args.id);
     return { success: true };
   },

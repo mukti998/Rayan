@@ -178,18 +178,26 @@ export default function Appointments() {
                   <td className="text-sm text-slate-600">{a.reason || "—"}</td>
                   <td><span className={`badge badge-${a.status}`}>{a.status}</span></td>
                   <td>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                       {a.status === "scheduled" && (
                         <button onClick={() => handleStatusChange(String(a._id), "confirmed")}
                           className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">Confirm</button>
                       )}
-                      {a.status === "confirmed" && (
+                      {a.status === "confirmed" && (user?.role === "doctor" || user?.role === "admin") && (
                         <button onClick={() => handleStatusChange(String(a._id), "in-progress")}
                           className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200">Start</button>
+                      )}
+                      {a.status === "in-progress" && (user?.role === "doctor" || user?.role === "admin") && (
+                        <button onClick={() => handleStatusChange(String(a._id), "completed")}
+                          className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">✓ Complete</button>
                       )}
                       {(a.status === "scheduled" || a.status === "confirmed") && (
                         <button onClick={() => handleStatusChange(String(a._id), "cancelled")}
                           className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">Cancel</button>
+                      )}
+                      {a.status === "confirmed" && (
+                        <button onClick={() => handleStatusChange(String(a._id), "no-show")}
+                          className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">No-show</button>
                       )}
                     </div>
                   </td>
