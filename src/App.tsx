@@ -19,6 +19,7 @@ import Vitals from "./pages/Vitals";
 import Wards from "./pages/Wards";
 import Scheduling from "./pages/Scheduling";
 import Reports from "./pages/Reports";
+import Departments from "./pages/Departments";
 import DoctorSchedule from "./pages/DoctorSchedule";
 import OfflineIndicator from "./components/OfflineIndicator";
 
@@ -205,6 +206,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/departments"
+        element={
+          <ProtectedRoute>
+            <Departments />
           </ProtectedRoute>
         }
       />
