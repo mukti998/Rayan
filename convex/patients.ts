@@ -149,17 +149,42 @@ export const update = mutation({
   },
 });
 
-// Delete patient — admin only
+// Delete patient — admin only, with confirmation name match
+// Does NOT delete related records — patient history is preserved permanently.
+// The confirmationName param must match the patient's full name to proceed.
 export const remove = mutation({
   args: {
     id: v.id("patients"),
+    confirmationName: v.string(),
     sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
     const user = await authenticate(ctx, args.sessionToken);
     authorize(user, "admin");
 
+    const patient = await ctx.db.get(args.id);
+    if (!patient) throw new Error("Patient not found");
+
+    // Require typed name to match patient's full name
+    const expectedName = `${patient.firstName} ${patient.lastName}`;
+    if (args.confirmationName.trim().toLowerCase() !== expectedName.toLowerCase()) {
+      throw new Error(
+        `Confirmation failed: typed name must match "${expectedName}" exactly`
+      );
+    }
+
+    // Delete the patient record only — related appointments, records, vitals,
+    // prescriptions, admissions, billing, and lab results are preserved.
     await ctx.db.delete(args.id);
+
+    await auditLog(ctx, {
+      userId: String(user._id),
+      userName: user.name,
+      action: "delete_patient",
+      target: patient.patientId,
+      details: `Deleted patient ${patient.firstName} ${patient.lastName} — related records preserved`,
+    });
+
     return { success: true };
   },
 });

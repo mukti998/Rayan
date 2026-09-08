@@ -32,6 +32,42 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Touch-friendly targets for mobile */
+@media (max-width: 768px) {
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+  .card {
+    padding: 16px;
+  }
+  th, td {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+  h1 {
+    font-size: 1.25rem;
+  }
+  .badge {
+    font-size: 0.65rem;
+    padding: 1px 6px;
+  }
+}
+
+/* Prevent zoom on input focus (iOS) */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -141,4 +177,84 @@ tbody tr:hover {
   border: 1px solid var(--border);
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+/* Print styles */
+@media print {
+  /* Hide everything except report content */
+  aside, nav, header, footer, .no-print,
+  button, .sidebar, [class*="sidebar"] {
+    display: none !important;
+  }
+
+  /* Reset layout for print */
+  body, html, #root {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Remove shadows and backgrounds */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Page setup */
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+
+  /* Ensure full-width content */
+  .space-y-6 {
+    width: 100% !important;
+  }
+
+  /* Force white backgrounds on cards/tables */
+  .card, table, th, td {
+    background: white !important;
+    border-color: #ccc !important;
+  }
+
+  /* Ensure text is readable */
+  .text-slate-800, .text-slate-900, h1, h2, h3, h4 {
+    color: black !important;
+  }
+
+  .text-slate-500, .text-slate-600, p {
+    color: #333 !important;
+  }
+
+  /* Avoid page breaks inside cards */
+  .card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Keep tables together */
+  table {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Report header styling */
+  h1 {
+    font-size: 18pt;
+    margin-bottom: 4pt;
+  }
+
+  /* Links show URL */
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+  }
 }

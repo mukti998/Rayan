@@ -1,4 +1,4 @@
-const CACHE_NAME = "clinic-manager-v1";
+const CACHE_NAME = "clinic-manager-v2";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -53,7 +53,7 @@ self.addEventListener("fetch", (event) => {
           if (cached) return cached;
           // Return a basic offline page for navigation
           if (event.request.mode === "navigate") {
-            return caches.match("/");
+            return caches.match("/index.html");
           }
           return new Response("Offline", { status: 503, statusText: "Service Unavailable" });
         });

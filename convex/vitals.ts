@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { authenticate, auditLog } from "./helpers";
+import { authenticate, authorize, auditLog } from "./helpers";
 
 // List vitals records
 export const list = query({
@@ -37,7 +37,7 @@ export const patientVitals = query({
   },
 });
 
-// Record new vitals — any authenticated user (typically nurse)
+// Record new vitals — nurse, doctor, or admin
 export const create = mutation({
   args: {
     patientId: v.string(),
@@ -55,6 +55,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin", "nurse", "doctor");
 
     const id = await ctx.db.insert("vitals", {
       patientId: args.patientId,

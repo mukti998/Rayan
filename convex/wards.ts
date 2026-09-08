@@ -150,6 +150,7 @@ export const listAdmissions = query({
   args: {
     status: v.optional(v.string()),
     ward: v.optional(v.string()),
+    patientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     let admissions = await ctx.db.query("admissions").collect();
@@ -159,6 +160,9 @@ export const listAdmissions = query({
     }
     if (args.ward && args.ward !== "all") {
       admissions = admissions.filter((a) => a.ward === args.ward);
+    }
+    if (args.patientId) {
+      admissions = admissions.filter((a) => a.patientId === args.patientId);
     }
 
     return admissions.sort((a, b) => {
