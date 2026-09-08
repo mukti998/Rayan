@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { hasRole, auditLog } from "./helpers";
+import { authenticate, authorize, auditLog } from "./helpers";
 
 // List prescriptions
 export const list = query({
@@ -13,10 +13,14 @@ export const list = query({
     let prescriptions = await ctx.db.query("prescriptions").collect();
 
     if (args.patientId) {
-      prescriptions = prescriptions.filter((p) => p.patientId === args.patientId);
+      prescriptions = prescriptions.filter(
+        (p) => p.patientId === args.patientId
+      );
     }
     if (args.doctorId) {
-      prescriptions = prescriptions.filter((p) => p.doctorId === args.doctorId);
+      prescriptions = prescriptions.filter(
+        (p) => p.doctorId === args.doctorId
+      );
     }
     if (args.status && args.status !== "all") {
       prescriptions = prescriptions.filter((p) => p.status === args.status);
@@ -34,23 +38,21 @@ export const create = mutation({
     doctorId: v.string(),
     doctorName: v.string(),
     date: v.string(),
-    medications: v.array(v.object({
-      name: v.string(),
-      dosage: v.string(),
-      frequency: v.string(),
-      duration: v.string(),
-      instructions: v.optional(v.string()),
-    })),
+    medications: v.array(
+      v.object({
+        name: v.string(),
+        dosage: v.string(),
+        frequency: v.string(),
+        duration: v.string(),
+        instructions: v.optional(v.string()),
+      })
+    ),
     notes: v.optional(v.string()),
-    callerRole: v.optional(v.string()),
-    callerId: v.optional(v.string()),
-    callerName: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check: only doctor or admin can create prescriptions
-    if (args.callerRole && !hasRole(args.callerRole, "admin", "doctor")) {
-      throw new Error("Access denied — only doctors and administrators can issue prescriptions");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin", "doctor");
 
     const id = await ctx.db.insert("prescriptions", {
       patientId: args.patientId,
@@ -64,10 +66,9 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
-    // Audit log
     await auditLog(ctx, {
-      userId: args.callerId || args.doctorId,
-      userName: args.callerName || args.doctorName,
+      userId: String(user._id),
+      userName: user.name,
       action: "create_prescription",
       target: args.patientId,
       details: `Prescription issued for ${args.patientName} — ${args.medications.length} medication(s)`,
@@ -88,33 +89,28 @@ export const updateStatus = mutation({
       v.literal("dispensed")
     ),
     dispensedBy: v.optional(v.string()),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Role check: dispensing is pharmacist/admin, completion is doctor/admin
-    if (args.callerRole) {
-      if (args.status === "dispensed" && !hasRole(args.callerRole, "admin", "pharmacist")) {
-        throw new Error("Access denied — only pharmacists can dispense prescriptions");
-      }
-      if (args.status === "completed" && !hasRole(args.callerRole, "admin", "doctor")) {
-        throw new Error("Access denied — only doctors can mark prescriptions as completed");
-      }
-      if (args.status === "cancelled" && !hasRole(args.callerRole, "admin", "doctor")) {
-        throw new Error("Access denied — only doctors and admins can cancel prescriptions");
-      }
+    const user = await authenticate(ctx, args.sessionToken);
+
+    // Role-based checks using DB role
+    if (args.status === "dispensed") {
+      authorize(user, "admin", "pharmacist");
+    } else if (args.status === "completed" || args.status === "cancelled") {
+      authorize(user, "admin", "doctor");
     }
 
     const updates: any = { status: args.status };
     if (args.status === "dispensed") {
       updates.dispensedAt = Date.now();
-      updates.dispensedBy = args.dispensedBy;
+      updates.dispensedBy = args.dispensedBy || user.name;
     }
     await ctx.db.patch(args.id, updates);
 
-    // Audit log
     await auditLog(ctx, {
-      userId: "system",
-      userName: args.callerRole || "System",
+      userId: String(user._id),
+      userName: user.name,
       action: `prescription_${args.status}`,
       target: `rx_${args.id}`,
       details: `Prescription status changed to ${args.status}`,

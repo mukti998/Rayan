@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { authenticate } from "./helpers";
 
 // List audit logs
 export const list = query({
@@ -24,7 +25,7 @@ export const list = query({
   },
 });
 
-// Add audit log entry
+// Add audit log entry — requires session
 export const log = mutation({
   args: {
     userId: v.string(),
@@ -32,10 +33,17 @@ export const log = mutation({
     action: v.string(),
     target: v.string(),
     details: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     const id = await ctx.db.insert("auditLog", {
-      ...args,
+      userId: args.userId,
+      userName: args.userName,
+      action: args.action,
+      target: args.target,
+      details: args.details,
       timestamp: Date.now(),
     });
     return id;
@@ -79,11 +87,14 @@ export const dashboardStats = query({
       prescriptions: {
         total: prescriptions.length,
         active: prescriptions.filter((p) => p.status === "active").length,
-        pendingDispense: prescriptions.filter((p) => p.status === "active").length,
+        pendingDispense: prescriptions.filter((p) => p.status === "active")
+          .length,
       },
       medications: {
         total: medications.length,
-        lowStock: medications.filter((m) => m.stockQuantity <= m.reorderLevel).length,
+        lowStock: medications.filter(
+          (m) => m.stockQuantity <= m.reorderLevel
+        ).length,
       },
       billing: {
         totalBilled: bills.reduce((sum, b) => sum + b.total, 0),
@@ -121,10 +132,15 @@ export const addIP = mutation({
     ipAddress: v.string(),
     label: v.string(),
     addedBy: v.string(),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     const id = await ctx.db.insert("ipAllowlist", {
-      ...args,
+      ipAddress: args.ipAddress,
+      label: args.label,
+      addedBy: args.addedBy,
       active: true,
       createdAt: Date.now(),
     });
@@ -136,16 +152,24 @@ export const toggleIP = mutation({
   args: {
     id: v.id("ipAllowlist"),
     active: v.boolean(),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     await ctx.db.patch(args.id, { active: args.active });
     return { success: true };
   },
 });
 
 export const removeIP = mutation({
-  args: { id: v.id("ipAllowlist") },
+  args: {
+    id: v.id("ipAllowlist"),
+    sessionToken: v.string(),
+  },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     await ctx.db.delete(args.id);
     return { success: true };
   },

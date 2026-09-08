@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { hasRole, auditLog } from "./helpers";
+import { authenticate, authorize, auditLog } from "./helpers";
 
 // List medical records
 export const list = query({
@@ -44,16 +44,11 @@ export const create = mutation({
     treatment: v.optional(v.string()),
     notes: v.optional(v.string()),
     followUpDate: v.optional(v.string()),
-    // Caller identity for server-side role check
-    callerRole: v.optional(v.string()),
-    callerId: v.optional(v.string()),
-    callerName: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check: only doctor or admin can create medical records
-    if (args.callerRole && !hasRole(args.callerRole, "admin", "doctor")) {
-      throw new Error("Access denied — only doctors and administrators can create medical records");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin", "doctor");
 
     const id = await ctx.db.insert("medicalRecords", {
       patientId: args.patientId,
@@ -70,10 +65,9 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
-    // Audit log
     await auditLog(ctx, {
-      userId: args.callerId || args.doctorId,
-      userName: args.callerName || args.doctorName,
+      userId: String(user._id),
+      userName: user.name,
       action: "create_medical_record",
       target: args.patientId,
       details: `Medical record created for ${args.patientName} — diagnosis: ${args.diagnosis}`,
@@ -91,15 +85,13 @@ export const update = mutation({
     treatment: v.optional(v.string()),
     notes: v.optional(v.string()),
     followUpDate: v.optional(v.string()),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check
-    if (args.callerRole && !hasRole(args.callerRole, "admin", "doctor")) {
-      throw new Error("Access denied — only doctors and administrators can update medical records");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin", "doctor");
 
-    const { id, callerRole, ...updates } = args;
+    const { id, sessionToken, ...updates } = args;
     const cleaned = Object.fromEntries(
       Object.entries(updates).filter(([, v]) => v !== undefined)
     );

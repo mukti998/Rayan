@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth-context";
 import { formatDate } from "../lib/utils";
 
 export default function LabResults() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [showOrder, setShowOrder] = useState(false);
   const [showResult, setShowResult] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -36,6 +36,7 @@ export default function LabResults() {
         testType: orderForm.testType,
         orderedDate: orderForm.orderedDate,
         notes: orderForm.notes || undefined,
+        sessionToken: sessionToken || "",
       });
       setShowOrder(false);
       setOrderForm({
@@ -56,6 +57,7 @@ export default function LabResults() {
         normalRange: resultForm.normalRange || undefined,
         notes: resultForm.notes || undefined,
         status: "completed",
+        sessionToken: sessionToken || "",
       });
       setShowResult(null);
       setResultForm({ results: "", normalRange: "", notes: "" });

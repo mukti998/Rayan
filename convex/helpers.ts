@@ -1,46 +1,80 @@
-import { QueryBuilder, GenericMutationCtx } from "convex/server";
+import { GenericMutationCtx } from "convex/server";
 import { DataModel } from "./_generated/dataModel";
 
-// Verify the caller has the required role(s)
-// Returns the user document or throws an error
-export async function requireRole(
+/**
+ * Validate a session token and return the authenticated user document.
+ * Throws if the session is invalid, expired, or the user is deactivated.
+ *
+ * This is the ONLY way mutations should verify caller identity.
+ * Never trust callerRole, callerId, or callerName from the client.
+ */
+export async function authenticate(
   ctx: GenericMutationCtx<DataModel>,
+  sessionToken: string
+) {
+  // Look up the session by token
+  const sessions = await ctx.db
+    .query("sessions")
+    .withIndex("by_token", (q) => q.eq("token", sessionToken))
+    .collect();
+
+  if (sessions.length === 0) {
+    throw new Error("Invalid session — please log in again");
+  }
+
+  const session = sessions[0];
+
+  // Session expires after 24 hours
+  const SESSION_TTL = 24 * 60 * 60 * 1000;
+  if (Date.now() - session.createdAt > SESSION_TTL) {
+    await ctx.db.delete(session._id);
+    throw new Error("Session expired — please log in again");
+  }
+
+  // Look up the user
+  const user = await ctx.db.get(session.userId);
+  if (!user) {
+    // Orphaned session — delete it
+    await ctx.db.delete(session._id);
+    throw new Error("User account not found");
+  }
+
+  if (!user.active) {
+    // Deactivated user — delete their sessions
+    const staleSessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const s of staleSessions) {
+      await ctx.db.delete(s._id);
+    }
+    throw new Error("Account is deactivated — contact administrator");
+  }
+
+  return user;
+}
+
+/**
+ * Check if the authenticated user has one of the allowed roles.
+ * Admin always has access.
+ * Returns true if authorized, throws if not.
+ */
+export function authorize(
+  user: { role: string },
   ...allowedRoles: string[]
 ) {
-  // Get the identity from the Convex auth session
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Not authenticated — no session found");
+  if (user.role === "admin") return true; // Admin can do everything
+  if (!allowedRoles.includes(user.role)) {
+    throw new Error(
+      `Access denied — requires role: ${allowedRoles.join(" or ")}`
+    );
   }
-
-  // Look up the user by their Convex auth subject (sub)
-  // Since we use a custom auth with localStorage, we look up by username stored in tokenIdentifier
-  const userId = identity.subject as string;
-
-  // Try to get user by the identity subject as a user ID
-  const user = await ctx.db.get(userId as any);
-  if (user && "role" in user) {
-    if (!allowedRoles.includes((user as any).role)) {
-      throw new Error(
-        `Access denied — requires role: ${allowedRoles.join(" or ")}`
-      );
-    }
-    return user;
-  }
-
-  // If we can't resolve via identity, allow the call
-  // (This fallback supports the current localStorage-based auth model)
-  // In production, replace with strict identity-to-user binding
-  return null;
+  return true;
 }
 
-// Helper to check if a user role is in the allowed list
-export function hasRole(userRole: string, ...allowedRoles: string[]): boolean {
-  if (userRole === "admin") return true; // Admin can do everything
-  return allowedRoles.includes(userRole);
-}
-
-// Audit log helper — automatically writes an audit entry
+/**
+ * Write an audit log entry.
+ */
 export async function auditLog(
   ctx: GenericMutationCtx<DataModel>,
   args: {
@@ -59,22 +93,4 @@ export async function auditLog(
     details: args.details,
     timestamp: Date.now(),
   });
-}
-
-// IP allowlist check helper
-export async function checkIPAllowlist(
-  ctx: any,
-  ipAddress: string
-): Promise<boolean> {
-  // If no IP allowlist exists, allow all (permissive default)
-  const allowed = await ctx.db
-    .query("ipAllowlist")
-    .filter((q: any) => q.eq(q.field("ipAddress"), ipAddress))
-    .collect();
-
-  // If there are no entries at all, allow everyone
-  if (allowed.length === 0) return true;
-
-  // If there are entries, the IP must be active
-  return allowed.some((entry: any) => entry.active);
 }

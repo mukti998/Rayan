@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { auditLog } from "./helpers";
+import { authenticate, authorize, auditLog } from "./helpers";
 
 // List all users
 export const list = query({
@@ -49,25 +49,22 @@ export const toggleActive = mutation({
   args: {
     id: v.id("users"),
     active: v.boolean(),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check: only admin can enable/disable users
-    if (args.callerRole && args.callerRole !== "admin") {
-      throw new Error("Access denied — only administrators can change user status");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
 
     await ctx.db.patch(args.id, { active: args.active });
 
-    // Audit log
-    const user = await ctx.db.get(args.id);
-    if (user) {
+    const targetUser = await ctx.db.get(args.id);
+    if (targetUser) {
       await auditLog(ctx, {
-        userId: args.callerRole ? "admin" : "system",
-        userName: args.callerRole || "System",
+        userId: String(user._id),
+        userName: user.name,
         action: args.active ? "enable_user" : "disable_user",
-        target: (user as any).username,
-        details: `User ${args.active ? "enabled" : "disabled"}: ${(user as any).name}`,
+        target: (targetUser as any).username,
+        details: `User ${args.active ? "enabled" : "disabled"}: ${(targetUser as any).name}`,
       });
     }
 
@@ -87,26 +84,24 @@ export const updateRole = mutation({
       v.literal("receptionist"),
       v.literal("lab Technician")
     ),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check: only admin can change roles
-    if (args.callerRole && args.callerRole !== "admin") {
-      throw new Error("Access denied — only administrators can change user roles");
-    }
+    const caller = await authenticate(ctx, args.sessionToken);
+    authorize(caller, "admin");
 
-    const user = await ctx.db.get(args.id);
-    const oldRole = user && "role" in user ? (user as any).role : "unknown";
+    const targetUser = await ctx.db.get(args.id);
+    const oldRole =
+      targetUser && "role" in targetUser ? (targetUser as any).role : "unknown";
     await ctx.db.patch(args.id, { role: args.role });
 
-    // Audit log
-    if (user) {
+    if (targetUser) {
       await auditLog(ctx, {
-        userId: args.callerRole ? "admin" : "system",
-        userName: args.callerRole || "System",
+        userId: String(caller._id),
+        userName: caller.name,
         action: "update_role",
-        target: (user as any).username,
-        details: `Role changed from ${oldRole} to ${args.role} for ${(user as any).name}`,
+        target: (targetUser as any).username,
+        details: `Role changed from ${oldRole} to ${args.role} for ${(targetUser as any).name}`,
       });
     }
 
@@ -118,25 +113,33 @@ export const updateRole = mutation({
 export const remove = mutation({
   args: {
     id: v.id("users"),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check: only admin can delete users
-    if (args.callerRole && args.callerRole !== "admin") {
-      throw new Error("Access denied — only administrators can delete users");
-    }
+    const caller = await authenticate(ctx, args.sessionToken);
+    authorize(caller, "admin");
 
-    const user = await ctx.db.get(args.id);
-    if (user && (user as any).username === "admin") {
+    const targetUser = await ctx.db.get(args.id);
+    if (
+      targetUser &&
+      "username" in targetUser &&
+      (targetUser as any).username === "admin"
+    ) {
       throw new Error("Cannot delete the primary admin account");
     }
 
     await auditLog(ctx, {
-      userId: args.callerRole || "system",
-      userName: args.callerRole || "System",
+      userId: String(caller._id),
+      userName: caller.name,
       action: "delete_user",
-      target: user && "username" in user ? (user as any).username : "unknown",
-      details: user && "name" in user ? `Deleted user: ${(user as any).name}` : "User deleted",
+      target:
+        targetUser && "username" in targetUser
+          ? (targetUser as any).username
+          : "unknown",
+      details:
+        targetUser && "name" in targetUser
+          ? `Deleted user: ${(targetUser as any).name}`
+          : "User deleted",
     });
 
     await ctx.db.delete(args.id);

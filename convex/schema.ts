@@ -246,6 +246,14 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_date", ["date"]),
 
+  // Sessions for auth verification
+  sessions: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    createdAt: v.number(),
+  }).index("by_token", ["token"])
+    .index("by_userId", ["userId"]),
+
   // Audit log for security
   auditLog: defineTable({
     userId: v.string(),

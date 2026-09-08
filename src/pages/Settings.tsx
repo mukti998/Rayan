@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth-context";
 import { roleLabels } from "../lib/utils";
 
 export default function Settings() {
-  const { user, logout } = useAuth();
+  const { user, sessionToken, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<"profile" | "password" | "system">("profile");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -29,7 +29,7 @@ export default function Settings() {
     }
     try {
       await changePassword({
-        userId: user!.userId,
+        sessionToken: sessionToken || "",
         currentPassword,
         newPassword,
       });
@@ -44,7 +44,7 @@ export default function Settings() {
     if (confirm("WARNING: This will delete ALL data. Are you absolutely sure?")) {
       if (confirm("FINAL WARNING: This cannot be undone. Type 'yes' mentally and click OK to proceed.")) {
         try {
-          await resetDatabase();
+          await resetDatabase({ sessionToken: sessionToken || "" });
           alert("Database has been reset. Please log in again.");
           logout();
         } catch (err: any) {

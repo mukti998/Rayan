@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth-context";
 import { formatDate } from "../lib/utils";
 
 export default function Pharmacy() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [activeTab, setActiveTab] = useState<"inventory" | "pending">("pending");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -33,6 +33,7 @@ export default function Pharmacy() {
         genericName: newMed.genericName || undefined,
         manufacturer: newMed.manufacturer || undefined,
         batchNumber: newMed.batchNumber || undefined,
+        sessionToken: sessionToken || "",
       });
       setShowAdd(false);
       setNewMed({
@@ -51,7 +52,7 @@ export default function Pharmacy() {
         id: prescriptionId as any,
         status: "dispensed",
         dispensedBy: user?.name || "Pharmacist",
-        callerRole: user?.role,
+        sessionToken: sessionToken || "",
       });
     } catch (err: any) {
       alert(err.message);
@@ -61,7 +62,7 @@ export default function Pharmacy() {
   const handleRestock = async (medId: string, currentStock: number) => {
     const amount = prompt(`Current stock: ${currentStock}. Enter new stock amount:`);
     if (amount && !isNaN(Number(amount))) {
-      await updateStock({ id: medId as any, stockQuantity: Number(amount) });
+      await updateStock({ id: medId as any, stockQuantity: Number(amount), sessionToken: sessionToken || "" });
     }
   };
 

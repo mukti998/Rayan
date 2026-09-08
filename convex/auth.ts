@@ -1,9 +1,16 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
+import bcrypt from "bcryptjs";
 
-// Simple password hash using Web Crypto API (works in Convex runtime)
+const BCRYPT_ROUNDS = 10;
+
+// Hash a password with bcrypt
 async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_ROUNDS);
+}
+
+// Legacy SHA-256 hash (for migrating existing passwords)
+async function hashPasswordSHA256(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password + "clinic_manager_salt_2024");
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -11,7 +18,39 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Login mutation
+// Verify a password against a stored hash, with automatic migration
+// Returns { valid, migratedHash } — if migratedHash is set, the caller should update the DB
+async function verifyPassword(
+  password: string,
+  storedHash: string
+): Promise<{ valid: boolean; migratedHash?: string }> {
+  // Try bcrypt first (new passwords)
+  const bcryptMatch = await bcrypt.compare(password, storedHash);
+  if (bcryptMatch) {
+    return { valid: true };
+  }
+
+  // Try legacy SHA-256 (old passwords — for migration)
+  const sha256Hash = await hashPasswordSHA256(password);
+  if (sha256Hash === storedHash) {
+    // Password matches old hash — upgrade to bcrypt
+    const newHash = await hashPassword(password);
+    return { valid: true, migratedHash: newHash };
+  }
+
+  return { valid: false };
+}
+
+// Generate a cryptographically random session token
+function generateToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Login mutation — creates a session and returns a token
 export const login = mutation({
   args: {
     username: v.string(),
@@ -31,10 +70,23 @@ export const login = mutation({
       throw new Error("Account is deactivated. Contact administrator.");
     }
 
-    const passwordHash = await hashPassword(args.password);
-    if (passwordHash !== user.passwordHash) {
+    const result = await verifyPassword(args.password, user.passwordHash);
+    if (!result.valid) {
       throw new Error("Invalid username or password");
     }
+
+    // Auto-migrate old SHA-256 hash to bcrypt
+    if (result.migratedHash) {
+      await ctx.db.patch(user._id, { passwordHash: result.migratedHash });
+    }
+
+    // Create a session
+    const token = generateToken();
+    await ctx.db.insert("sessions", {
+      userId: user._id,
+      token,
+      createdAt: Date.now(),
+    });
 
     // Log the login
     await ctx.db.insert("auditLog", {
@@ -45,6 +97,58 @@ export const login = mutation({
       details: "User logged in successfully",
       timestamp: Date.now(),
     });
+
+    return {
+      sessionToken: token,
+      userId: user._id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      department: user.department,
+    };
+  },
+});
+
+// Logout — delete the session
+export const logout = mutation({
+  args: {
+    sessionToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.sessionToken))
+      .collect();
+
+    for (const session of sessions) {
+      await ctx.db.delete(session._id);
+    }
+
+    return { success: true };
+  },
+});
+
+// Validate an existing session (used on app load to check if session is still valid)
+export const validateSession = query({
+  args: {
+    sessionToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.sessionToken))
+      .collect();
+
+    if (sessions.length === 0) return null;
+
+    const session = sessions[0];
+    const SESSION_TTL = 24 * 60 * 60 * 1000;
+    if (Date.now() - session.createdAt > SESSION_TTL) {
+      return null;
+    }
+
+    const user = await ctx.db.get(session.userId);
+    if (!user || !user.active) return null;
 
     return {
       userId: user._id,
@@ -73,8 +177,14 @@ export const register = mutation({
     ),
     department: v.optional(v.string()),
     phone: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    // Validate session and check admin role
+    const { authenticate, authorize } = await import("./helpers");
+    const caller = await authenticate(ctx, args.sessionToken);
+    authorize(caller, "admin");
+
     // Check if username already exists
     const existing = await ctx.db
       .query("users")
@@ -99,28 +209,38 @@ export const register = mutation({
       createdAt: Date.now(),
     });
 
+    // Audit log
+    await ctx.db.insert("auditLog", {
+      userId: caller._id,
+      userName: caller.name,
+      action: "create_user",
+      target: args.username,
+      details: `Created user: ${args.name} (${args.role})`,
+      timestamp: Date.now(),
+    });
+
     return userId;
   },
 });
 
-// Change password
+// Change password — requires session token
 export const changePassword = mutation({
   args: {
-    userId: v.id("users"),
+    sessionToken: v.string(),
     currentPassword: v.string(),
     newPassword: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) throw new Error("User not found");
+    const { authenticate } = await import("./helpers");
+    const caller = await authenticate(ctx, args.sessionToken);
 
-    const currentHash = await hashPassword(args.currentPassword);
-    if (currentHash !== user.passwordHash) {
+    const result = await verifyPassword(args.currentPassword, caller.passwordHash);
+    if (!result.valid) {
       throw new Error("Current password is incorrect");
     }
 
     const newHash = await hashPassword(args.newPassword);
-    await ctx.db.patch(args.userId, { passwordHash: newHash });
+    await ctx.db.patch(caller._id, { passwordHash: newHash });
 
     return { success: true };
   },

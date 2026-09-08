@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth-context";
 import { formatDate } from "../lib/utils";
 
 export default function MedicalRecords() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -35,9 +35,6 @@ export default function MedicalRecords() {
       await createRecord({
         patientId: formData.patientId,
         patientName: formData.patientName,
-        callerRole: user?.role,
-        callerId: user?.userId,
-        callerName: user?.name,
         doctorId: formData.doctorId,
         doctorName: formData.doctorName,
         visitDate: formData.visitDate,
@@ -47,6 +44,7 @@ export default function MedicalRecords() {
         treatment: formData.treatment || undefined,
         notes: formData.notes || undefined,
         followUpDate: formData.followUpDate || undefined,
+        sessionToken: sessionToken || "",
       });
       setShowCreate(false);
       setFormData({

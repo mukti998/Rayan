@@ -8,7 +8,7 @@ import { formatDate } from "../lib/utils";
 export default function PatientDetail() {
   const { patientId } = useParams<{ patientId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [showEdit, setShowEdit] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -67,7 +67,7 @@ export default function PatientDetail() {
         insuranceNumber: editForm.insuranceNumber || undefined,
         notes: editForm.notes || undefined,
         status: editForm.status as any,
-        callerRole: user?.role,
+        sessionToken: sessionToken || "",
       });
       setShowEdit(false);
     } catch (err: any) {

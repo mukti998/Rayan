@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { hasRole, auditLog } from "./helpers";
+import { authenticate, authorize, auditLog } from "./helpers";
 
 // List devices
 export const list = query({
@@ -50,15 +50,11 @@ export const create = mutation({
     purchaseDate: v.optional(v.string()),
     ipAddress: v.optional(v.string()),
     notes: v.optional(v.string()),
-    callerRole: v.optional(v.string()),
-    callerId: v.optional(v.string()),
-    callerName: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check: only admin can register devices
-    if (args.callerRole && args.callerRole !== "admin") {
-      throw new Error("Access denied — only administrators can register devices");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
 
     // Check serial number uniqueness
     const existing = await ctx.db.query("devices").collect();
@@ -66,7 +62,6 @@ export const create = mutation({
       throw new Error("Serial number already exists");
     }
 
-    // New devices default to "inactive" — pending admin approval
     const id = await ctx.db.insert("devices", {
       deviceName: args.deviceName,
       deviceType: args.deviceType,
@@ -75,14 +70,13 @@ export const create = mutation({
       purchaseDate: args.purchaseDate,
       ipAddress: args.ipAddress,
       notes: args.notes,
-      status: "inactive", // Must be approved by admin before activation
+      status: "inactive",
       createdAt: Date.now(),
     });
 
-    // Audit log
     await auditLog(ctx, {
-      userId: args.callerId || "system",
-      userName: args.callerName || "System",
+      userId: String(user._id),
+      userName: user.name,
       action: "register_device",
       target: args.serialNumber,
       details: `Device registered: ${args.deviceName} (${args.deviceType}) — pending approval`,
@@ -92,50 +86,48 @@ export const create = mutation({
   },
 });
 
-// Approve device (admin only) — activates the device
+// Approve device (admin only)
 export const approve = mutation({
   args: {
     id: v.id("devices"),
-    approvedBy: v.string(),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    // Server-side role check: only admin can approve devices
-    if (args.callerRole && args.callerRole !== "admin") {
-      throw new Error("Access denied — only administrators can approve devices");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
 
     await ctx.db.patch(args.id, {
       status: "active",
-      approvedBy: args.approvedBy,
+      approvedBy: user.name,
       approvedAt: Date.now(),
     });
 
-    // Audit log
     const device = await ctx.db.get(args.id);
     await auditLog(ctx, {
-      userId: args.approvedBy,
-      userName: args.approvedBy,
+      userId: String(user._id),
+      userName: user.name,
       action: "approve_device",
-      target: device && "serialNumber" in device ? (device as any).serialNumber : String(args.id),
-      details: `Device approved by ${args.approvedBy}`,
+      target:
+        device && "serialNumber" in device
+          ? (device as any).serialNumber
+          : String(args.id),
+      details: `Device approved by ${user.name}`,
     });
 
     return { success: true };
   },
 });
 
-// Reject device (admin only) — keeps inactive, adds rejection note
+// Reject device (admin only)
 export const reject = mutation({
   args: {
     id: v.id("devices"),
     reason: v.optional(v.string()),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    if (args.callerRole && args.callerRole !== "admin") {
-      throw new Error("Access denied — only administrators can reject devices");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
 
     const device = await ctx.db.get(args.id);
     const note = args.reason
@@ -148,10 +140,13 @@ export const reject = mutation({
     });
 
     await auditLog(ctx, {
-      userId: "system",
-      userName: args.callerRole || "System",
+      userId: String(user._id),
+      userName: user.name,
       action: "reject_device",
-      target: device && "serialNumber" in device ? (device as any).serialNumber : String(args.id),
+      target:
+        device && "serialNumber" in device
+          ? (device as any).serialNumber
+          : String(args.id),
       details: note,
     });
 
@@ -165,25 +160,26 @@ export const update = mutation({
     id: v.id("devices"),
     deviceName: v.optional(v.string()),
     department: v.optional(v.string()),
-    status: v.optional(v.union(
-      v.literal("active"),
-      v.literal("maintenance"),
-      v.literal("inactive"),
-      v.literal("retired")
-    )),
+    status: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("maintenance"),
+        v.literal("inactive"),
+        v.literal("retired")
+      )
+    ),
     assignedTo: v.optional(v.string()),
     lastMaintenance: v.optional(v.string()),
     nextMaintenance: v.optional(v.string()),
     notes: v.optional(v.string()),
     ipAddress: v.optional(v.string()),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    if (args.callerRole && !hasRole(args.callerRole, "admin")) {
-      throw new Error("Access denied — only administrators can update device details");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
 
-    const { id, callerRole, ...updates } = args;
+    const { id, sessionToken, ...updates } = args;
     const cleaned = Object.fromEntries(
       Object.entries(updates).filter(([, v]) => v !== undefined)
     );
@@ -196,19 +192,21 @@ export const update = mutation({
 export const remove = mutation({
   args: {
     id: v.id("devices"),
-    callerRole: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    if (args.callerRole && args.callerRole !== "admin") {
-      throw new Error("Access denied — only administrators can remove devices");
-    }
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
 
     const device = await ctx.db.get(args.id);
     await auditLog(ctx, {
-      userId: "system",
-      userName: args.callerRole || "System",
+      userId: String(user._id),
+      userName: user.name,
       action: "remove_device",
-      target: device && "serialNumber" in device ? (device as any).serialNumber : String(args.id),
+      target:
+        device && "serialNumber" in device
+          ? (device as any).serialNumber
+          : String(args.id),
       details: `Device removed: ${device && "deviceName" in device ? (device as any).deviceName : "unknown"}`,
     });
 

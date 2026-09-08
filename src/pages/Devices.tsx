@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth-context";
 
 export default function Devices() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -40,9 +40,7 @@ export default function Devices() {
         purchaseDate: formData.purchaseDate || undefined,
         ipAddress: formData.ipAddress || undefined,
         notes: formData.notes || undefined,
-        callerRole: user?.role,
-        callerId: user?.userId,
-        callerName: user?.name,
+        sessionToken: sessionToken || "",
       });
       setShowCreate(false);
       setFormData({ deviceName: "", deviceType: "", serialNumber: "", department: "", purchaseDate: "", ipAddress: "", notes: "" });
@@ -55,8 +53,7 @@ export default function Devices() {
     try {
       await approveDevice({
         id: deviceId as any,
-        approvedBy: user?.name || "Admin",
-        callerRole: user?.role,
+        sessionToken: sessionToken || "",
       });
     } catch (err: any) {
       alert(err.message);
@@ -69,7 +66,7 @@ export default function Devices() {
       await rejectDevice({
         id: deviceId as any,
         reason: reason || undefined,
-        callerRole: user?.role,
+        sessionToken: sessionToken || "",
       });
     } catch (err: any) {
       alert(err.message);
@@ -77,12 +74,12 @@ export default function Devices() {
   };
 
   const handleStatusChange = async (id: string, status: string) => {
-    await updateDevice({ id: id as any, status: status as any, callerRole: user?.role });
+    await updateDevice({ id: id as any, status: status as any, sessionToken: sessionToken || "" });
   };
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to remove this device?")) {
-      await deleteDevice({ id: id as any, callerRole: user?.role });
+      await deleteDevice({ id: id as any, sessionToken: sessionToken || "" });
     }
   };
 

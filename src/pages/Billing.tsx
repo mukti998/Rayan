@@ -12,7 +12,7 @@ interface BillItem {
 }
 
 export default function Billing() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [formError, setFormError] = useState("");
@@ -77,10 +77,7 @@ export default function Billing() {
         total,
         paidAmount,
         paymentMethod,
-        createdBy: user?.username || "unknown",
-        callerRole: user?.role,
-        callerId: user?.userId,
-        callerName: user?.name,
+        sessionToken: sessionToken || "",
       });
       setShowCreate(false);
       setPatientId(""); setPatientName("");
@@ -98,9 +95,7 @@ export default function Billing() {
         id: billId as any,
         amount: Number(amount),
         paymentMethod: "cash",
-        callerRole: user?.role,
-        callerId: user?.userId,
-        callerName: user?.name,
+        sessionToken: sessionToken || "",
       });
     }
   };

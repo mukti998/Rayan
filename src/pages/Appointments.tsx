@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth-context";
 
 export default function Appointments() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -35,7 +35,7 @@ export default function Appointments() {
     try {
       await createAppointment({
         ...formData,
-        createdBy: user?.username || "unknown",
+        sessionToken: sessionToken || "",
       });
       setShowCreate(false);
       setFormData({
@@ -49,7 +49,7 @@ export default function Appointments() {
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
-      await updateStatus({ id: id as any, status: status as any });
+      await updateStatus({ id: id as any, status: status as any, sessionToken: sessionToken || "" });
     } catch (err: any) {
       alert(err.message);
     }

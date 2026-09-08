@@ -13,7 +13,7 @@ interface MedicationEntry {
 }
 
 export default function Prescriptions() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [formError, setFormError] = useState("");
@@ -70,9 +70,7 @@ export default function Prescriptions() {
         date,
         medications: validMeds,
         notes: notes || undefined,
-        callerRole: user?.role,
-        callerId: user?.userId,
-        callerName: user?.name,
+        sessionToken: sessionToken || "",
       });
       setShowCreate(false);
       setPatientId(""); setPatientName(""); setDoctorId(""); setDoctorName("");

@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { authenticate } from "./helpers";
 
 // List lab results
 export const list = query({
@@ -21,7 +22,7 @@ export const list = query({
   },
 });
 
-// Create lab result
+// Create lab result — any authenticated user
 export const create = mutation({
   args: {
     patientId: v.string(),
@@ -34,8 +35,11 @@ export const create = mutation({
     normalRange: v.optional(v.string()),
     orderedDate: v.string(),
     notes: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     const id = await ctx.db.insert("labResults", {
       ...args,
       status: "completed",
@@ -46,7 +50,7 @@ export const create = mutation({
   },
 });
 
-// Order lab test
+// Order lab test — any authenticated user
 export const order = mutation({
   args: {
     patientId: v.string(),
@@ -57,8 +61,11 @@ export const order = mutation({
     testType: v.string(),
     orderedDate: v.string(),
     notes: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     const id = await ctx.db.insert("labResults", {
       ...args,
       results: "",
@@ -69,7 +76,7 @@ export const order = mutation({
   },
 });
 
-// Update lab result
+// Update lab result — any authenticated user
 export const update = mutation({
   args: {
     id: v.id("labResults"),
@@ -77,8 +84,11 @@ export const update = mutation({
     normalRange: v.optional(v.string()),
     notes: v.optional(v.string()),
     status: v.union(v.literal("completed"), v.literal("reviewed")),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     await ctx.db.patch(args.id, {
       results: args.results,
       normalRange: args.normalRange,

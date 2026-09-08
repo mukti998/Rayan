@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { authenticate, auditLog } from "./helpers";
 
 // List appointments
 export const list = query({
@@ -41,7 +42,7 @@ export const today = query({
   },
 });
 
-// Create appointment
+// Create appointment — any authenticated user
 export const create = mutation({
   args: {
     patientId: v.string(),
@@ -51,22 +52,30 @@ export const create = mutation({
     date: v.string(),
     time: v.string(),
     reason: v.optional(v.string()),
-    createdBy: v.string(),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await authenticate(ctx, args.sessionToken);
+
     const id = await ctx.db.insert("appointments", {
-      ...args,
+      patientId: args.patientId,
+      patientName: args.patientName,
+      doctorId: args.doctorId,
+      doctorName: args.doctorName,
+      date: args.date,
+      time: args.time,
+      reason: args.reason,
       status: "scheduled",
       createdAt: Date.now(),
+      createdBy: user.username,
     });
 
-    await ctx.db.insert("auditLog", {
-      userId: args.createdBy,
-      userName: args.createdBy,
+    await auditLog(ctx, {
+      userId: String(user._id),
+      userName: user.name,
       action: "create_appointment",
       target: args.patientId,
       details: `Appointment with ${args.doctorName} on ${args.date} at ${args.time}`,
-      timestamp: Date.now(),
     });
 
     return id;
@@ -86,8 +95,11 @@ export const updateStatus = mutation({
       v.literal("no-show")
     ),
     notes: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     const updates: any = { status: args.status };
     if (args.notes) updates.notes = args.notes;
     await ctx.db.patch(args.id, updates);
@@ -97,8 +109,13 @@ export const updateStatus = mutation({
 
 // Cancel appointment
 export const cancel = mutation({
-  args: { id: v.id("appointments") },
+  args: {
+    id: v.id("appointments"),
+    sessionToken: v.string(),
+  },
   handler: async (ctx, args) => {
+    await authenticate(ctx, args.sessionToken);
+
     await ctx.db.patch(args.id, { status: "cancelled" });
     return { success: true };
   },

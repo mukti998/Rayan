@@ -6,7 +6,7 @@ import { generatePatientId } from "../lib/utils";
 import { useNavigate } from "react-router-dom";
 
 export default function Patients() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -39,9 +39,7 @@ export default function Patients() {
       await createPatient({
         ...formData,
         allergies: [],
-        callerRole: user?.role,
-        callerId: user?.userId,
-        callerName: user?.name,
+        sessionToken: sessionToken || "",
       });
       setShowCreate(false);
       setFormData({

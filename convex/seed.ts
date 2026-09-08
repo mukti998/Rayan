@@ -1,7 +1,10 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { authenticate, authorize } from "./helpers";
+import bcrypt from "bcryptjs";
 
 // Seed the database with default admin user and sample data
+// This is called from the login page BEFORE auth, so no session token required
 export const seedDatabase = mutation({
   args: {},
   handler: async (ctx) => {
@@ -15,13 +18,9 @@ export const seedDatabase = mutation({
       return "Database already seeded";
     }
 
-    // Simple password hash
+    // Hash passwords with bcrypt
     async function hashPassword(password: string): Promise<string> {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(password + "clinic_manager_salt_2024");
-      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      return bcrypt.hash(password, 10);
     }
 
     const defaultPassword = await hashPassword("admin123");
@@ -131,7 +130,6 @@ export const seedDatabase = mutation({
       { pid: "P005", first: "David", last: "Wilson", dob: "1982-06-12", gender: "male" as const, phone: "555-0105", address: "654 Maple Dr", blood: "O-", status: "active" as const },
     ];
 
-    const patientIds: string[] = [];
     for (const p of patients) {
       await ctx.db.insert("patients", {
         patientId: p.pid,
@@ -146,7 +144,6 @@ export const seedDatabase = mutation({
         status: p.status,
         allergies: [],
       });
-      patientIds.push(p.pid);
     }
 
     // Create sample medications
@@ -200,14 +197,30 @@ export const seedDatabase = mutation({
   },
 });
 
-// Reset database (for development)
+// Reset database (for development) — requires admin session
 export const resetDatabase = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    sessionToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
+
     const tables = [
-      "auditLog", "billing", "labResults", "prescriptions",
-      "medicalRecords", "appointments", "medications", "devices",
-      "patients", "doctors", "ipAllowlist", "departments", "users",
+      "sessions",
+      "auditLog",
+      "billing",
+      "labResults",
+      "prescriptions",
+      "medicalRecords",
+      "appointments",
+      "medications",
+      "devices",
+      "patients",
+      "doctors",
+      "ipAllowlist",
+      "departments",
+      "users",
     ];
     for (const table of tables) {
       const docs = await ctx.db.query(table as any).collect();

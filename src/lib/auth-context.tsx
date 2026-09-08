@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 
@@ -13,16 +13,18 @@ interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
+  sessionToken: string | null;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
   hasRole: (...roles: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  sessionToken: null,
   login: async () => {},
-  logout: () => {},
+  logout: async () => {},
   isLoading: true,
   hasRole: () => false,
 });
@@ -31,24 +33,55 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+interface StoredSession {
+  user: AuthUser;
+  sessionToken: string;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
   const loginMutation = useMutation(api.auth.login);
+  const logoutMutation = useMutation(api.auth.logout);
+
+  // Validate existing session on mount
+  const storedSession = (() => {
+    try {
+      const raw = localStorage.getItem("clinic_session");
+      if (!raw) return null;
+      return JSON.parse(raw) as StoredSession;
+    } catch {
+      localStorage.removeItem("clinic_session");
+      return null;
+    }
+  })();
+
+  const validSession = useQuery(
+    api.auth.validateSession,
+    storedSession?.sessionToken ? { sessionToken: storedSession.sessionToken } : "skip"
+  );
 
   useEffect(() => {
-    // Check stored session
-    const stored = localStorage.getItem("clinic_session");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setUser(parsed);
-      } catch {
-        localStorage.removeItem("clinic_session");
-      }
+    if (validSession === undefined) {
+      // Still loading validation
+      return;
     }
+
+    if (validSession && storedSession) {
+      // Session is still valid on the server
+      setUser(validSession);
+      setSessionToken(storedSession.sessionToken);
+    } else {
+      // Session expired or invalid — clear it
+      localStorage.removeItem("clinic_session");
+      setUser(null);
+      setSessionToken(null);
+    }
+
     setIsLoading(false);
-  }, []);
+  }, [validSession, storedSession]);
 
   const login = async (username: string, password: string) => {
     const result = await loginMutation({ username, password });
@@ -60,11 +93,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       department: result.department,
     };
     setUser(authUser);
-    localStorage.setItem("clinic_session", JSON.stringify(authUser));
+    setSessionToken(result.sessionToken);
+    localStorage.setItem(
+      "clinic_session",
+      JSON.stringify({ user: authUser, sessionToken: result.sessionToken })
+    );
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (sessionToken) {
+      try {
+        await logoutMutation({ sessionToken });
+      } catch {
+        // Session may already be expired — just clear locally
+      }
+    }
     setUser(null);
+    setSessionToken(null);
     localStorage.removeItem("clinic_session");
   };
 
@@ -75,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading, hasRole }}>
+    <AuthContext.Provider value={{ user, sessionToken, login, logout, isLoading, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

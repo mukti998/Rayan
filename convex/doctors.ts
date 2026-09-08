@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { authenticate, authorize } from "./helpers";
 
 // List all doctors
 export const list = query({
@@ -11,7 +12,9 @@ export const list = query({
     let doctors = await ctx.db.query("doctors").collect();
 
     if (args.specialization && args.specialization !== "all") {
-      doctors = doctors.filter((d) => d.specialization === args.specialization);
+      doctors = doctors.filter(
+        (d) => d.specialization === args.specialization
+      );
     }
 
     if (args.search) {
@@ -38,7 +41,7 @@ export const get = query({
   },
 });
 
-// Create doctor
+// Create doctor — admin only
 export const create = mutation({
   args: {
     userId: v.string(),
@@ -50,17 +53,29 @@ export const create = mutation({
     email: v.optional(v.string()),
     consultationFee: v.optional(v.number()),
     bio: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
+
     const id = await ctx.db.insert("doctors", {
-      ...args,
+      userId: args.userId,
+      name: args.name,
+      specialization: args.specialization,
+      licenseNumber: args.licenseNumber,
+      department: args.department,
+      phone: args.phone,
+      email: args.email,
+      consultationFee: args.consultationFee,
+      bio: args.bio,
       available: true,
     });
     return id;
   },
 });
 
-// Update doctor
+// Update doctor — admin only
 export const update = mutation({
   args: {
     id: v.id("doctors"),
@@ -72,9 +87,13 @@ export const update = mutation({
     consultationFee: v.optional(v.number()),
     bio: v.optional(v.string()),
     schedule: v.optional(v.string()),
+    sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
-    const { id, ...updates } = args;
+    const user = await authenticate(ctx, args.sessionToken);
+    authorize(user, "admin");
+
+    const { id, sessionToken, ...updates } = args;
     const cleaned = Object.fromEntries(
       Object.entries(updates).filter(([, v]) => v !== undefined)
     );

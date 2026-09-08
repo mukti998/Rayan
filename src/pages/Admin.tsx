@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth-context";
 import { formatDateTime, roleLabels, roleColors } from "../lib/utils";
 
 export default function Admin() {
-  const { user } = useAuth();
+  const { user, sessionToken } = useAuth();
   const [activeTab, setActiveTab] = useState<"users" | "audit" | "ip">("users");
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [formError, setFormError] = useState("");
@@ -37,6 +37,7 @@ export default function Admin() {
         role: newUser.role,
         department: newUser.department || undefined,
         phone: newUser.phone || undefined,
+        sessionToken: sessionToken || "",
       });
       setShowCreateUser(false);
       setNewUser({ username: "", password: "", name: "", email: "", role: "receptionist", department: "", phone: "" });
@@ -49,7 +50,7 @@ export default function Admin() {
     const ip = prompt("Enter IP address:");
     const label = prompt("Enter label (e.g. 'Front Desk'):");
     if (ip && label) {
-      await addIP({ ipAddress: ip, label, addedBy: user?.username || "admin" });
+      await addIP({ ipAddress: ip, label, addedBy: user?.username || "admin", sessionToken: sessionToken || "" });
     }
   };
 
@@ -181,11 +182,11 @@ export default function Admin() {
                         <div className="flex gap-1">
                           {u.username !== "admin" && (
                             <>
-                              <button onClick={() => toggleUser({ id: u._id as any, active: !u.active, callerRole: user?.role })}
+                              <button onClick={() => toggleUser({ id: u._id as any, active: !u.active, sessionToken: sessionToken || "" })}
                                 className={`text-xs px-2 py-1 rounded ${u.active ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                                 {u.active ? "Disable" : "Enable"}
                               </button>
-                              <button onClick={() => { if (confirm("Delete this user?")) deleteUser({ id: u._id as any, callerRole: user?.role }); }}
+                              <button onClick={() => { if (confirm("Delete this user?")) deleteUser({ id: u._id as any, sessionToken: sessionToken || "" }); }}
                                 className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">Delete</button>
                             </>
                           )}
@@ -283,11 +284,11 @@ export default function Admin() {
                       </td>
                       <td>
                         <div className="flex gap-1">
-                          <button onClick={() => toggleIP({ id: ip._id as any, active: !ip.active })}
+                          <button onClick={() => toggleIP({ id: ip._id as any, active: !ip.active, sessionToken: sessionToken || "" })}
                             className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
                             {ip.active ? "Block" : "Allow"}
                           </button>
-                          <button onClick={() => removeIP({ id: ip._id as any })}
+                          <button onClick={() => removeIP({ id: ip._id as any, sessionToken: sessionToken || "" })}
                             className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">Remove</button>
                         </div>
                       </td>
