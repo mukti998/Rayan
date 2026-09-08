@@ -26,6 +26,12 @@ export default function Appointments() {
   });
   const patients = useQuery(api.patients.list, {});
   const doctors = useQuery(api.doctors.list, {});
+  const existingDoctorAppts = useQuery(
+    api.appointments.list,
+    formData.doctorId && formData.date
+      ? { doctorId: formData.doctorId, date: formData.date }
+      : "skip"
+  );
   const createAppointment = useMutation(api.appointments.create);
   const updateStatus = useMutation(api.appointments.updateStatus);
 
@@ -117,6 +123,21 @@ export default function Appointments() {
               <input type="time" value={formData.time} onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" required />
             </div>
+            {/* Conflict Warning */}
+            {formData.doctorId && formData.date && existingDoctorAppts && existingDoctorAppts.length > 0 && (
+              <div className="md:col-span-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-amber-800 mb-1">⚠️ Existing appointments for this doctor on {formData.date}:</p>
+                <div className="flex flex-wrap gap-2">
+                  {existingDoctorAppts.map((a) => (
+                    <span key={String(a._id)} className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                      {a.time} — {a.patientName} ({a.status})
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-amber-600 mt-1">Conflicts within 30 minutes will be rejected by the server.</p>
+              </div>
+            )}
+
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">Reason</label>
               <input type="text" value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })}

@@ -57,6 +57,37 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const user = await authenticate(ctx, args.sessionToken);
 
+    // Conflict detection: check for overlapping appointments for the same doctor
+    const existingAppts = await ctx.db
+      .query("appointments")
+      .withIndex("by_doctor", (q) =>
+        q.eq("doctorId", args.doctorId).eq("date", args.date)
+      )
+      .collect();
+
+    // Assume each appointment takes 30 minutes
+    const APPT_DURATION_MIN = 30;
+    const toMinutes = (time: string) => {
+      const [h, m] = time.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const newStart = toMinutes(args.time);
+    const newEnd = newStart + APPT_DURATION_MIN;
+
+    const conflicts = existingAppts.filter((a) => {
+      if (a.status === "cancelled" || a.status === "no-show") return false;
+      const existStart = toMinutes(a.time);
+      const existEnd = existStart + APPT_DURATION_MIN;
+      return newStart < existEnd && existStart < newEnd;
+    });
+
+    if (conflicts.length > 0) {
+      const conflictTime = conflicts[0].time;
+      throw new Error(
+        `Schedule conflict: Dr. ${args.doctorName} already has an appointment at ${conflictTime} on ${args.date}`
+      );
+    }
+
     const id = await ctx.db.insert("appointments", {
       patientId: args.patientId,
       patientName: args.patientName,
