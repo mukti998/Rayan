@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { useCacheEffect } from "../lib/use-cached-query";
+import { CACHE_KEYS } from "../lib/offline-cache";
 
 export default function Doctors() {
   const [search, setSearch] = useState("");
   const [specFilter, setSpecFilter] = useState("all");
   const doctors = useQuery(api.doctors.list, { search, specialization: specFilter });
+  useCacheEffect(doctors, CACHE_KEYS.DOCTORS);
   const specializations = useQuery(api.doctors.specializations);
 
   return (

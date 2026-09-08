@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import Vitals from "./pages/Vitals";
 import Wards from "./pages/Wards";
 import Scheduling from "./pages/Scheduling";
+import OfflineIndicator from "./components/OfflineIndicator";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -198,6 +199,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <OfflineIndicator />
         <AppRoutes />
       </AuthProvider>
     </BrowserRouter>

@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth-context";
 import { generatePatientId } from "../lib/utils";
+import { useCacheEffect } from "../lib/use-cached-query";
+import { CACHE_KEYS } from "../lib/offline-cache";
 import { useNavigate } from "react-router-dom";
 
 export default function Patients() {
@@ -30,6 +32,7 @@ export default function Patients() {
   const [formError, setFormError] = useState("");
 
   const patients = useQuery(api.patients.list, { search, status: statusFilter });
+  useCacheEffect(patients, CACHE_KEYS.PATIENTS);
   const createPatient = useMutation(api.patients.create);
 
   const handleSubmit = async (e: React.FormEvent) => {

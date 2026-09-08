@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth-context";
 import { formatDate } from "../lib/utils";
+import { useCacheEffect } from "../lib/use-cached-query";
+import { CACHE_KEYS } from "../lib/offline-cache";
 
 export default function Pharmacy() {
   const { user, sessionToken } = useAuth();
@@ -12,6 +14,7 @@ export default function Pharmacy() {
   const [showAdd, setShowAdd] = useState(false);
 
   const medications = useQuery(api.medications.list, { search, category: categoryFilter });
+  useCacheEffect(medications, CACHE_KEYS.MEDICATIONS);
   const lowStockMeds = useQuery(api.medications.lowStock);
   const categories = useQuery(api.medications.categories);
   const pendingPrescriptions = useQuery(api.prescriptions.pending);
