@@ -19,6 +19,7 @@ import Vitals from "./pages/Vitals";
 import Wards from "./pages/Wards";
 import Scheduling from "./pages/Scheduling";
 import Reports from "./pages/Reports";
+import DoctorSchedule from "./pages/DoctorSchedule";
 import OfflineIndicator from "./components/OfflineIndicator";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -156,6 +157,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Admin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/doctor-schedule"
+        element={
+          <ProtectedRoute>
+            <DoctorSchedule />
           </ProtectedRoute>
         }
       />
