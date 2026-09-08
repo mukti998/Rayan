@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import Vitals from "./pages/Vitals";
 import Wards from "./pages/Wards";
 import Scheduling from "./pages/Scheduling";
+import Reports from "./pages/Reports";
 import OfflineIndicator from "./components/OfflineIndicator";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -155,6 +156,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Admin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute>
+            <Reports />
           </ProtectedRoute>
         }
       />
