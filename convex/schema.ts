@@ -207,6 +207,50 @@ export default defineSchema({
     .index("by_type", ["deviceType"])
     .index("by_department", ["department"]),
 
+  // Bed management
+  beds: defineTable({
+    bedNumber: v.string(),
+    ward: v.string(),
+    bedType: v.union(
+      v.literal("general"),
+      v.literal("semi-private"),
+      v.literal("private"),
+      v.literal("icu")
+    ),
+    status: v.union(
+      v.literal("available"),
+      v.literal("occupied"),
+      v.literal("maintenance")
+    ),
+    currentPatientId: v.optional(v.string()),
+    currentAdmissionId: v.optional(v.string()),
+  }).index("by_ward", ["ward"])
+    .index("by_status", ["status"])
+    .index("by_bedNumber", ["bedNumber"]),
+
+  // Patient admissions
+  admissions: defineTable({
+    patientId: v.string(),
+    patientName: v.string(),
+    bedId: v.optional(v.id("beds")),
+    bedNumber: v.optional(v.string()),
+    ward: v.string(),
+    admissionDate: v.string(),
+    dischargeDate: v.optional(v.string()),
+    admittedBy: v.string(),
+    admittedById: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("discharged"),
+      v.literal("transferred")
+    ),
+    diagnosis: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    doctorName: v.optional(v.string()),
+  }).index("by_patient", ["patientId"])
+    .index("by_status", ["status"])
+    .index("by_ward", ["ward"]),
+
   // Departments table
   departments: defineTable({
     name: v.string(),
