@@ -207,6 +207,32 @@ export default defineSchema({
     .index("by_type", ["deviceType"])
     .index("by_department", ["department"]),
 
+  // Nurse shift scheduling
+  shifts: defineTable({
+    nurseId: v.string(),
+    nurseName: v.string(),
+    ward: v.string(),
+    date: v.string(),
+    shiftType: v.union(
+      v.literal("morning"),
+      v.literal("afternoon"),
+      v.literal("night")
+    ),
+    shiftStart: v.string(),
+    shiftEnd: v.string(),
+    status: v.union(
+      v.literal("scheduled"),
+      v.literal("confirmed"),
+      v.literal("completed"),
+      v.literal("absent")
+    ),
+    notes: v.optional(v.string()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+  }).index("by_nurse", ["nurseId", "date"])
+    .index("by_date", ["date"])
+    .index("by_ward", ["ward", "date"]),
+
   // Bed management
   beds: defineTable({
     bedNumber: v.string(),

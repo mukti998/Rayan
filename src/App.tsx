@@ -17,6 +17,7 @@ import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import Vitals from "./pages/Vitals";
 import Wards from "./pages/Wards";
+import Scheduling from "./pages/Scheduling";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -153,6 +154,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Admin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/scheduling"
+        element={
+          <ProtectedRoute>
+            <Scheduling />
           </ProtectedRoute>
         }
       />
