@@ -15,6 +15,7 @@ import Devices from "./pages/Devices";
 import Admin from "./pages/Admin";
 import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
+import Vitals from "./pages/Vitals";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -151,6 +152,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Admin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/vitals"
+        element={
+          <ProtectedRoute>
+            <Vitals />
           </ProtectedRoute>
         }
       />

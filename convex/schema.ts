@@ -246,6 +246,25 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_date", ["date"]),
 
+  // Patient vitals / observations
+  vitals: defineTable({
+    patientId: v.string(),
+    patientName: v.string(),
+    recordedBy: v.string(),
+    recordedById: v.string(),
+    timestamp: v.number(),
+    bloodPressureSystolic: v.number(),
+    bloodPressureDiastolic: v.number(),
+    heartRate: v.number(),
+    temperature: v.number(),
+    oxygenSaturation: v.number(),
+    respiratoryRate: v.optional(v.number()),
+    weight: v.optional(v.number()),
+    height: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  }).index("by_patient", ["patientId", "timestamp"])
+    .index("by_date", ["timestamp"]),
+
   // Sessions for auth verification
   sessions: defineTable({
     userId: v.id("users"),

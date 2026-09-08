@@ -11,6 +11,7 @@ const navItems = [
   { path: "/records", label: "Medical Records", icon: "📋", roles: ["admin", "doctor", "nurse"] },
   { path: "/prescriptions", label: "Prescriptions", icon: "💊", roles: ["admin", "doctor", "nurse"] },
   { path: "/pharmacy", label: "Pharmacy", icon: "🏥", roles: ["admin", "pharmacist"] },
+  { path: "/vitals", label: "Vitals", icon: "💓", roles: ["admin", "doctor", "nurse"] },
   { path: "/lab", label: "Lab Results", icon: "🔬", roles: ["admin", "doctor", "nurse", "lab Technician"] },
   { path: "/devices", label: "Devices", icon: "🖥️", roles: ["admin"] },
   { path: "/billing", label: "Billing", icon: "💰", roles: ["admin", "receptionist"] },
